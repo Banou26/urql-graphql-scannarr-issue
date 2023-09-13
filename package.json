@@ -1,0 +1,25 @@
+{
+  "name": "urql",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "codegen": "graphql-codegen --config codegen.ts",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@urql/exchange-graphcache": "^6.3.3",
+    "graphql": "^16.6.0",
+    "graphql-yoga": "^4.0.3",
+    "urql": "^4.0.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5"
+  },
+  "type": "module"
+}
