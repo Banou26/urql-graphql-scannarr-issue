@@ -89,15 +89,6 @@ const schemaData =
     .then(res => res.json())
     .then(res => res.data)
 
-const updateElement = gql`
-  fragment ElementFragment on Element {
-    id
-    children {
-      id 
-    }
-  }
-`
-
 const query = gql`
   query GetItem {
     Item {
@@ -118,8 +109,6 @@ const query = gql`
   }
 `
 
-let updateItem = false
-
 const cache = cacheExchange({
   schema: schemaData,
   keys: {
@@ -137,21 +126,8 @@ const cache = cacheExchange({
   updates: {
     Item: {
       children: (result, args, cache, info) => {
-        if (!info.parentKey.includes('parent') || updateItem) return
-        updateItem = true
-        const res = {
-          __typename: 'Item',
-          id: info.parentKey.replace('Item:', ''),
-          children: result.children,
-          element: {
-            __typename: 'Element',
-            id: `parent:${result.children.map(item => item.element.id).join(',')}`,
-            children: result.children.map(item => item.element) ?? []
-          }
-        }
-        console.log('writeFragment', result, info.parentKey, res)
-        cache.writeFragment(updateElement, res)
-        updateItem = false
+        if (!info.parentKey.includes('parent')) return
+        result.element.children = result.children.map(item => item.element) ?? []
       }
     }
   },
@@ -159,6 +135,12 @@ const cache = cacheExchange({
     Item: {
       id: (data, args, cache, info) => {
         if (info.parentKey.includes('parent')) return info.parentKey.replace('Item:', '')
+        return data.id
+      }
+    },
+    Element: {
+      id: (data, args, cache, info) => {
+        if (info.parentKey.includes('parent')) return info.parentKey.replace('Element:', '')
         return data.id
       }
     }
