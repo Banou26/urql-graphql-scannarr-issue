@@ -9,19 +9,36 @@ import { devtoolsExchange } from '@urql/devtools'
 
 const schema = createSchema({
   typeDefs: `
-    type Item {
-      id: String
-      children: [Item!]!
-      element: Element
+    type EpisodeEdge {
+      node: Episode
     }
 
-    type Element {
-      id: String
-      children: [Element]!
+    type MediaEdge {
+      node: Media
+    }
+
+    type EpisodeConnection {
+      edges: [EpisodeEdge!]!
+    }
+
+    type MediaConnection {
+      edges: [MediaEdge!]!
+    }
+
+    type Episode {
+      uri: String
+      handles: EpisodeConnection!
+      media: Media
+    }
+
+    type Media {
+      uri: String
+      handles: MediaConnection!
     }
 
     type Query {
-      Item: Item!
+      Episodes: [Episode!]!
+      Episode: Episode!
     }
 
     schema {
@@ -30,41 +47,55 @@ const schema = createSchema({
   `,
   resolvers: {
     Query: {
-      Item: () => ({
-        __typename: 'Item',
-        id: 'parent:',
-        async *children () {
-          yield {
-            __typename: 'Item',
-            id: '2',
-            bar: 'bar',
-            children: [],
-            element: {
-              __typename: 'Element',
-              id: '12',
-              children: []
+      Episodes: () => ([{
+        __typename: 'Episode',
+        uri: 'scannarr:',
+        handles: {
+          __typename: 'EpisodeConnection',
+          async *edges () {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            yield {
+              node: {
+                __typename: 'Episode',
+                uri: '2',
+                bar: 'bar',
+                handles: {
+                  __typename: 'EpisodeConnection',
+                  edges: []
+                },
+                media: {
+                  __typename: 'Media',
+                  uri: '12'
+                }
+              }
             }
           }
-  
-          await new Promise((resolve) => setTimeout(resolve, 1000))
-  
-          yield {
-            __typename: 'Item',
-            id: '3',
-            bar: 'baz',
-            children: [],
-            element: {
-              __typename: 'Element',
-              id: '13',
-              children: []
+        }
+      }]),
+      Episode: () => ({
+        __typename: 'Episode',
+        uri: 'scannarr:',
+        handles: {
+          __typename: 'EpisodeConnection',
+          async *edges () {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+            yield {
+              node: {
+                __typename: 'Episode',
+                uri: '2',
+                bar: 'bar',
+                handles: {
+                  __typename: 'EpisodeConnection',
+                  edges: []
+                },
+                media: {
+                  __typename: 'Media',
+                  uri: '12'
+                }
+              }
             }
           }
-        },
-        // element: {
-        //   __typename: 'Element',
-        //   id: 'parent:',
-        //   children: []
-        // }
+        }
       })
     }
   }
@@ -90,19 +121,27 @@ const schemaData =
     .then(res => res.data)
 
 const query = gql`
-  query GetItem {
-    Item {
-      id
-      children @stream {
-        id
-        element {
-          id
+  query GetEpisode {
+    Episodes {
+      uri
+      handles {
+        edges @stream {
+          node {
+            uri
+            media {
+              uri
+            }
+          }
         }
       }
-      element {
-        id
-        children {
-          id
+      media {
+        uri
+        handles {
+          edges {
+            node {
+              uri
+            }
+          }
         }
       }
     }
@@ -112,44 +151,63 @@ const query = gql`
 const cache = cacheExchange({
   schema: schemaData,
   keys: {
-    Item: (item) => {
-      const childrenIds = item.children?.map(child => child.id)
-      if (childrenIds?.length) return `parent:${childrenIds.join(',')}`
-      return item.id
+    Episode: (episode) => {
+      const handlesIds = episode.handles?.edges.map(episodeEdge => episodeEdge.node.uri)
+        if (handlesIds?.length) {
+          console.log('KEY Episode', `scannarr:${handlesIds.join(',')}`, episode)
+          return `scannarr:${handlesIds.join(',')}`
+        }
+      return episode.uri
     },
-    Element: (element) => {
-      const childrenIds = element.children?.map(child => child.id)
-      if (childrenIds?.length) return `parent:${childrenIds.join(',')}`
-      return element.id
+    Media: (media) => {
+      const handlesIds = media.handles?.edges.map(mediaEdge => mediaEdge.node.uri)
+      if (handlesIds?.length) {
+          console.log('KEY Media', `scannarr:${handlesIds.join(',')}`, media)
+          return `scannarr:${handlesIds.join(',')}`
+      }
+      return media.uri
     }
   },
   updates: {
-    Item: {
-      children: (result, args, cache, info) => {
-        if (!info.parentKey.includes('parent')) return
-        if (!result.element) {
-          result.element = {
-            __typename: 'Element',
-            id: info.parentKey.replace('Element:', ''),
-            children: result.children.map(item => item.element)
+    Episode: {
+      handles: (result, args, cache, info) => {
+        if (!info.parentKey.includes('scannarr')) return
+        if (!result.media && result.handles?.edges.length) {
+          result.media = {
+            __typename: 'Media',
+            uri: info.parentKey.replace('Media:', ''),
+            handles: {
+              __typename: 'MediaConnection',
+              edges: result.handles.edges.map(episodeEdge => ({
+                __typename: 'MediaEdge',
+                node: episodeEdge.node.media
+              }))
+            }
           }
           return
         }
-        result.element.children = result.children.map(item => item.element) ?? []
+        if (result.media) {
+          result.media.handles.edges =
+            result.handles?.edges.map(episodeEdge => ({
+              __typename: 'MediaEdge',
+              node: episodeEdge.node.media
+            }))
+            ?? []
+        }
       }
     }
   },
   resolvers: {
-    Item: {
-      id: (data, args, cache, info) => {
-        if (info.parentKey.includes('parent')) return info.parentKey.replace('Item:', '')
-        return data.id
+    Episode: {
+      uri: (data, args, cache, info) => {
+        if (info.parentKey.includes('scannarr')) return info.parentKey.replace('Episode:', '')
+        return data.uri
       }
     },
-    Element: {
-      id: (data, args, cache, info) => {
-        if (info.parentKey.includes('parent')) return info.parentKey.replace('Element:', '')
-        return data.id
+    Media: {
+      uri: (data, args, cache, info) => {
+        if (info.parentKey.includes('scannarr')) return info.parentKey.replace('Media:', '')
+        return data.uri
       }
     }
   }
@@ -166,32 +224,32 @@ const client = new Client({
 
 // WANTED RESULT IS 
 // {
-//   "Item": {
-//     "id": "parent:2,3",
-//     "children": [
+//   "Episode": {
+//     "uri": "scannarr:2,3",
+//     "handles": [
 //       {
-//         "id": "2",
-//         "element": {
-//           "id": "12"
+//         "uri": "2",
+//         "media": {
+//           "uri": "12"
 //         }
 //       },
 //       {
-//         "id": "3",
-//         "element": {
-//           "id": "13"
+//         "uri": "3",
+//         "media": {
+//           "uri": "13"
 //         }
 //       }
 //     ],
-//     "element": {
-//       "id": "parent:12,13",
-//       "children": [{ "id": "12" }, { "id": "13" }]
+//     "media": {
+//       "uri": "scannarr:12,13",
+//       "handles": [{ "uri": "12" }, { "uri": "13" }]
 //     }
 //   }
 // }
 
 const App = () => {
   const [res] = useQuery({ query })
-  console.log('res', res)
+  console.log('res', res.data?.Episode, res.data?.Episode?.media)
   if (res.fetching) {
     return <div>loading...</div>
   }
