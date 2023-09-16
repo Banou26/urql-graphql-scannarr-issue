@@ -60,11 +60,11 @@ const schema = createSchema({
             }
           }
         },
-        element: {
-          __typename: 'Element',
-          id: 'parent:',
-          children: []
-        }
+        // element: {
+        //   __typename: 'Element',
+        //   id: 'parent:',
+        //   children: []
+        // }
       })
     }
   }
@@ -127,6 +127,14 @@ const cache = cacheExchange({
     Item: {
       children: (result, args, cache, info) => {
         if (!info.parentKey.includes('parent')) return
+        if (!result.element) {
+          result.element = {
+            __typename: 'Element',
+            id: info.parentKey.replace('Element:', ''),
+            children: result.children.map(item => item.element)
+          }
+          return
+        }
         result.element.children = result.children.map(item => item.element) ?? []
       }
     }
