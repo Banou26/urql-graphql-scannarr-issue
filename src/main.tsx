@@ -103,16 +103,7 @@ const query = gql`
     Page {
       episode {
         uri
-        handles {
-          edges @stream {
-            node {
-              uri
-              media {
-                uri
-              }
-            }
-          }
-        }
+        # Comment this
         media {
           uri
           handles {
@@ -123,6 +114,28 @@ const query = gql`
             }
           }
         }
+        # Up to here and
+        handles {
+          edges @stream {
+            node {
+              uri
+              media {
+                uri
+              }
+            }
+          }
+        }
+        # Uncomment this to fix the issue
+        # media {
+        #   uri
+        #   handles {
+        #     edges {
+        #       node {
+        #         uri
+        #       }
+        #     }
+        #   }
+        # }
       }
     }
   }
