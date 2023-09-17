@@ -36,9 +36,12 @@ const schema = createSchema({
       handles: MediaConnection!
     }
 
+    type Page {
+      episode: [Episode!]!
+    }
+
     type Query {
-      Episodes: [Episode!]!
-      Episode: Episode!
+      Page: Page!
     }
 
     schema {
@@ -46,57 +49,32 @@ const schema = createSchema({
     }
   `,
   resolvers: {
+    Page: {
+      episode: async () => ([{
+        __typename: 'Episode',
+        uri: 'scannarr:',
+        handles: {
+          __typename: 'EpisodeConnection',
+          edges: [{
+            node: {
+              __typename: 'Episode',
+              uri: '2',
+              bar: 'bar',
+              handles: {
+                __typename: 'EpisodeConnection',
+                edges: []
+              },
+              media: {
+                __typename: 'Media',
+                uri: '12'
+              }
+            }
+          }]
+        }
+      }])
+    },
     Query: {
-      Episodes: () => ([{
-        __typename: 'Episode',
-        uri: 'scannarr:',
-        handles: {
-          __typename: 'EpisodeConnection',
-          async *edges () {
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            yield {
-              node: {
-                __typename: 'Episode',
-                uri: '2',
-                bar: 'bar',
-                handles: {
-                  __typename: 'EpisodeConnection',
-                  edges: []
-                },
-                media: {
-                  __typename: 'Media',
-                  uri: '12'
-                }
-              }
-            }
-          }
-        }
-      }]),
-      Episode: () => ({
-        __typename: 'Episode',
-        uri: 'scannarr:',
-        handles: {
-          __typename: 'EpisodeConnection',
-          async *edges () {
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            yield {
-              node: {
-                __typename: 'Episode',
-                uri: '2',
-                bar: 'bar',
-                handles: {
-                  __typename: 'EpisodeConnection',
-                  edges: []
-                },
-                media: {
-                  __typename: 'Media',
-                  uri: '12'
-                }
-              }
-            }
-          }
-        }
-      })
+      Page: () => ({})
     }
   }
 })
@@ -122,24 +100,26 @@ const schemaData =
 
 const query = gql`
   query GetEpisode {
-    Episodes {
-      uri
-      handles {
-        edges @stream {
-          node {
-            uri
-            media {
+    Page {
+      episode {
+        uri
+        handles {
+          edges @stream {
+            node {
               uri
+              media {
+                uri
+              }
             }
           }
         }
-      }
-      media {
-        uri
-        handles {
-          edges {
-            node {
-              uri
+        media {
+          uri
+          handles {
+            edges {
+              node {
+                uri
+              }
             }
           }
         }
@@ -151,19 +131,20 @@ const query = gql`
 const cache = cacheExchange({
   schema: schemaData,
   keys: {
+    Page: () => null,
     Episode: (episode) => {
       const handlesIds = episode.handles?.edges.map(episodeEdge => episodeEdge.node.uri)
         if (handlesIds?.length) {
-          console.log('KEY Episode', `scannarr:${handlesIds.join(',')}`, episode)
-          return `scannarr:${handlesIds.join(',')}`
+          console.log('KEY Episode', `scannarr:(${handlesIds.join(',')})`, episode)
+          return `scannarr:(${handlesIds.join(',')})`
         }
       return episode.uri
     },
     Media: (media) => {
       const handlesIds = media.handles?.edges.map(mediaEdge => mediaEdge.node.uri)
       if (handlesIds?.length) {
-          console.log('KEY Media', `scannarr:${handlesIds.join(',')}`, media)
-          return `scannarr:${handlesIds.join(',')}`
+          console.log('KEY Media', `scannarr:(${handlesIds.join(',')})`, media)
+          return `scannarr:(${handlesIds.join(',')})`
       }
       return media.uri
     }
